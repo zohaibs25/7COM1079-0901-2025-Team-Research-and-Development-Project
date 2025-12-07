@@ -1,0 +1,6 @@
+1.3 Research question
+Has the mean unemployment rate across U.S. Metropolitan Statistical Areas significantly decreased from January 1990 to November 2016?
+1.4 Research Hypothesis (H0/H1)
+•	H₀: There is no difference in the median unemployment rate between January 1990 and November 2016 (μ₁₉₉₀ = μ₂₀₁₆).
+•	H₁: The median unemployment rate in November 2016 is lower than in January 1990 (μ₂₀₁₆ < μ₁₉₉₀).
+A one-tailed Wilcoxon signed-rank test is employed since each of the 394 metropolitan areas has a paired observation and the differences cannot be normally distributed (Shapiro–Wilk p < 2.2×10⁻¹⁶) so a non-parametric paired test is the most suitable option.
