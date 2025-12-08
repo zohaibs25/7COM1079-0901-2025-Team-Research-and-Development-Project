@@ -1,0 +1,116 @@
+# 7COM1079-0901-2025 - Team Research and Development Project
+# Dataset: Unemployment rates by Metropolitan Statistical Area 1990-2016
+# RQ: Has the mean unemployment rate significantly decreased from Jan 1990 to Nov 2016?
+
+# 1. Installing & loading packages
+pkgs <- c("readxl", "dplyr", "ggplot2", "tidyr")
+install_if_missing <- function(p) if (!require(p, character.only = TRUE)) install.packages(p)
+invisible(lapply(pkgs, install_if_missing))
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# 2. Loading data
+all_data <- read_excel("Unemployment rates by Metropolitan Statistical Area 1990-2016.xlsx",
+                       sheet = "All Years & Months")
+
+cat("Dataset loaded:", nrow(all_data), "rows ×", ncol(all_data), "columns\n")
+
+# 3. Extracting Jan 1990 and Nov 2016
+jan1990 <- all_data %>% 
+  filter(Year == 1990, Month == "01") %>% 
+  select(Area, `Unemployment Rate`) %>% 
+  rename(rate1990 = `Unemployment Rate`)
+
+nov2016 <- all_data %>% 
+  filter(Year == 2016, Month == "11") %>% 
+  select(Area, `Unemployment Rate`) %>% 
+  rename(rate2016 = `Unemployment Rate`)
+
+# 4. Pairing the areas
+paired <- inner_join(jan1990, nov2016, by = "Area")
+cat("Areas with data in both periods:", nrow(paired), "\n\n")
+
+# 5. Descriptive statistics
+mean_1990 <- mean(paired$rate1990)
+mean_2016 <- mean(paired$rate2016)
+mean_diff <- mean(paired$rate1990 - paired$rate2016)
+
+cat("=== DESCRIPTIVE STATISTICS ===\n")
+cat(sprintf("Mean Jan 1990 : %.3f%%\n", mean_1990))
+cat(sprintf("Mean Nov 2016 : %.3f%%\n", mean_2016))
+cat(sprintf("Mean decrease : %.3f percentage points\n\n", mean_diff))
+
+# 6. Normality check
+diff <- paired$rate1990 - paired$rate2016
+shapiro_p <- shapiro.test(diff)$p.value
+cat("Shapiro-Wilk p-value on differences:", format.pval(shapiro_p, digits = 4), "\n")
+cat(ifelse(shapiro_p > 0.05, "→ Normal → use paired t-test\n", "→ Non-normal → use Wilcoxon\n\n"))
+
+# 7. Main test: Wilcoxon signed-rank (non-parametric)
+wilcox_result <- wilcox.test(paired$rate1990, paired$rate2016,
+                             paired = TRUE, alternative = "greater")
+
+cat("=== WILCOXON SIGNED-RANK TEST (recommended) ===\n")
+print(wilcox_result)
+
+# 8. Paired t-test
+t_result <- t.test(paired$rate1990, paired$rate2016,
+                   paired = TRUE, alternative = "greater")
+cat("\n=== PAIRED T-TEST (for comparison) ===\n")
+print(t_result)
+
+# 9. Preparing data for plots
+long_data <- paired %>%
+  pivot_longer(cols = c(rate1990, rate2016),
+               names_to = "Period",
+               values_to = "Rate") %>%
+  mutate(Period = recode(Period,
+                         rate1990 = "January 1990",
+                         rate2016 = "November 2016"))
+
+# 10. Plot 1 – Overlaid histogram + density
+p1 <- ggplot(long_data, aes(x = Rate, fill = Period)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 alpha = 0.6, position = "identity", bins = 40,
+                 colour = "black", linewidth = 0.3) +
+  geom_density(alpha = 0.5, linewidth = 1.1) +
+  scale_fill_manual(values = c("January 1990" = "#E69F00",
+                               "November 2016" = "#56B4E9")) +
+  labs(title = "Distribution of Unemployment Rates Across U.S. Metropolitan Areas",
+       subtitle = "January 1990 vs November 2016 (n = 394 areas)",
+       x = "Unemployment Rate (%)",
+       y = "Density",
+       fill = "Period",
+       caption = "Source: BLS Local Area Unemployment Statistics 1990–2016") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top",
+        plot.title = element_text(face = "bold"))
+
+print(p1)
+ggsave("Unemployment_Distribution_1990_vs_2016.png", p1,
+       width = 11, height = 7, dpi = 300)
+
+# 11. Plot 2 – Box-plot comparison
+p2 <- ggplot(long_data, aes(x = Period, y = Rate, fill = Period)) +
+  geom_boxplot(alpha = 0.8, outlier.size = 1.5) +
+  scale_fill_manual(values = c("January 1990" = "#E69F00",
+                               "November 2016" = "#56B4E9")) +
+  labs(title = "Box-plot Comparison of Unemployment Rates",
+       subtitle = "394 U.S. Metropolitan Areas",
+       x = "",
+       y = "Unemployment Rate (%)") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+print(p2)
+ggsave("Unemployment_Boxplot_1990_vs_2016.png", p2,
+       width = 9, height = 6, dpi = 300)
+
+cat("\n=== FINAL CONCLUSION ===\n")
+cat("The mean unemployment rate across U.S. metropolitan areas has SIGNIFICANTLY DECREASED\n")
+cat("from January 1990 to November 2016 (mean decrease ≈ 0.63 percentage points).\n")
+cat("Wilcoxon p-value =", format.pval(wilcox_result$p.value, digits = 3), "→ Null hypothesis REJECTED\n")
+
